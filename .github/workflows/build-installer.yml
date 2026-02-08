@@ -1,0 +1,60 @@
+name: Build Installer
+
+on:
+    push:
+        branches: ["master", "main"]
+    pull_request:
+        branches: ["master", "main"]
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Install dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y makeself
+
+            - name: Prepare Payload Directory
+              run: |
+                  mkdir -p payload/images payload/data
+
+                  # Copy the installer script
+                  cp smart-install.sh payload/
+                  chmod +x payload/smart-install.sh
+
+                  # Copy docker-compose.yml 
+                  # (Assuming it's in the root, if not, adjust path)
+                  if [ -f docker-compose.yml ]; then
+                    cp docker-compose.yml payload/
+                  else
+                    echo "Warning: docker-compose.yml not found, creating dummy for demo"
+                    touch payload/docker-compose.yml
+                  fi
+
+                  # Create dummy bundle data for demonstration if not present
+                  # In a real scenario, you'd download artifacts or build images here
+                  touch payload/images/.keep
+                  touch payload/data/.keep
+
+            - name: Create Self-Extracting Archive
+              run: |
+                  # makeself syntax: <archive_dir> <file_name> <label> <startup_script> [args]
+                  makeself --notemp payload/ install_stack.run "Smart Docker Stack Installer" ./smart-install.sh
+
+            - name: Verify Installer
+              run: |
+                  ls -lh install_stack.run
+                  # Optional: Run with --help or --info if makeself supports it, or just dry run
+                  # ./install_stack.run --info
+
+            - name: Upload Installer Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: smart-installer
+                  path: install_stack.run
+                  retention-days: 5
