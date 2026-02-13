@@ -1,0 +1,35 @@
+---
+- name: Verify Remote Server Reachability
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    remote_host: "{{ groups['remote'][0] }}"
+    ports_to_check:
+      - { port: 3724, name: "Auth Server" }
+      - { port: 8085, name: "World Server" }
+      - { port: 7878, name: "SOAP Port" }
+
+  tasks:
+    - name: Check connectivity to remote ports
+      wait_for:
+        host: "{{ remote_host }}"
+        port: "{{ item.port }}"
+        state: started
+        timeout: 5
+      register: port_check
+      ignore_errors: true
+      loop: "{{ ports_to_check }}"
+
+    - name: Report status
+      debug:
+        msg: >
+          Port {{ item.item.port }} ({{ item.item.name }}):
+          {% if item.failed %}
+          CLOSED/UNREACHABLE
+          {% else %}
+          OPEN
+          {% endif %}
+      loop: "{{ port_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"

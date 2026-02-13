@@ -1,0 +1,28 @@
+---
+- name: Configure Realm Advertisement
+  hosts: remote
+  gather_facts: false
+  vars:
+    # Remote IP address to advertise
+    # We can use the inventory_hostname if it resolves to the IP, or explicitly set it.
+    # Here we use the fact that we are connecting to the IP.
+    advertised_address: "{{ inventory_hostname }}"
+
+  tasks:
+    - name: Update realmlist address
+      command: >
+        docker exec ac-database mysql -u root -ppassword acore_auth -e
+        "UPDATE realmlist SET address = '{{ advertised_address }}', localAddress = '127.0.0.1' WHERE id = 1;"
+      register: db_update
+      changed_when: true
+
+    - name: Verify update
+      command: >
+        docker exec ac-database mysql -u root -ppassword acore_auth -e
+        "SELECT id, name, address, localAddress FROM realmlist WHERE id = 1;"
+      register: db_verify
+      changed_when: false
+
+    - name: Show updated realmlist
+      debug:
+        msg: "{{ db_verify.stdout_lines }}"

@@ -1,0 +1,43 @@
+---
+- name: Fix Remote Git Configuration
+  hosts: remote
+  gather_facts: false
+  vars:
+    remote_project_path: "~/azerothcore-wotlk"
+    git_repo_url: "https://github.com/3shn/azerothcore-wotlk.git"
+    git_branch: "master"
+
+  tasks:
+    - name: Ensure git is installed
+      package:
+        name: git
+        state: present
+      become: true
+      ignore_errors: true # In case we don't have sudo, proceed mostly if git is already there
+
+    - name: Initialize git repo
+      command: git init
+      args:
+        chdir: "{{ remote_project_path }}"
+
+    - name: Configure git remote
+      shell: |
+        git remote remove origin || true
+        git remote add origin {{ git_repo_url }}
+      args:
+        chdir: "{{ remote_project_path }}"
+
+    - name: Fetch from origin explicitly
+      command: git fetch origin +refs/heads/master:refs/remotes/origin/master
+      args:
+        chdir: "{{ remote_project_path }}"
+
+    - name: Force checkout master from origin
+      command: git checkout -B master origin/master
+      args:
+        chdir: "{{ remote_project_path }}"
+
+    - name: Set upstream branch
+      command: git branch --set-upstream-to=origin/master master
+      args:
+        chdir: "{{ remote_project_path }}"

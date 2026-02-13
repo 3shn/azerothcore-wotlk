@@ -1,0 +1,68 @@
+---
+- name: Deploy AzerothCore Stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    local_image_path: "{{ playbook_dir }}/build/azeroth-docker-images.tar"
+    remote_project_path: "~/azerothcore-wotlk"
+    remote_image_path: "{{ remote_project_path }}/azeroth-docker-images.tar"
+    # List of images to save and deploy
+    images:
+      - acore/ac-wotlk-worldserver:master
+      - acore/ac-wotlk-authserver:master
+      - acore/ac-wotlk-db-import:master
+      - acore/ac-wotlk-client-data:master
+      - mysql:8.4
+
+  tasks:
+    - name: Ensure local temporary directory exists
+      file:
+        path: "{{ playbook_dir }}/build"
+        state: directory
+
+    - name: Save Docker images to tarball
+      command: >
+        docker save -o {{ local_image_path }} {{ images | join(' ') }}
+      changed_when: true
+
+- name: Deploy to Remote Host
+  hosts: remote
+  gather_facts: false
+  vars:
+    local_image_path: "{{ playbook_dir }}/build/azeroth-docker-images.tar"
+    remote_project_path: "~/azerothcore-wotlk"
+    remote_image_path: "{{ remote_project_path }}/azeroth-docker-images.tar"
+
+  tasks:
+    - name: Ensure remote project directory exists
+      file:
+        path: "{{ remote_project_path }}"
+        state: directory
+
+    - name: Copy image tarball to remote host
+      copy:
+        src: "{{ local_image_path }}"
+        dest: "{{ remote_image_path }}"
+        mode: "0644"
+
+    - name: Load Docker images on remote host
+      command: "docker load -i {{ remote_image_path }}"
+      changed_when: true
+
+    - name: Start services with Docker Compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ remote_project_path }}"
+        state: present
+        pull: never
+        remove_orphans: true
+      register: compose_result
+
+    - name: Show Compose Output
+      debug:
+        var: compose_result
+
+    - name: Cleanup remote tarball
+      file:
+        path: "{{ remote_image_path }}"
+        state: absent
